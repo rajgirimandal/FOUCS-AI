@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - focusai-data:/app/data
+    environment:
+      - PORT=3000
+      - JWT_SECRET=focus-ai-secret-key-change-in-production
+    restart: unless-stopped
+    networks:
+      - focusai-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    environment:
+      - API_URL=http://backend:3000
+    restart: unless-stopped
+    networks:
+      - focusai-network
+
+volumes:
+  focusai-data:
+
+networks:
+  focusai-network:
+    driver: bridge

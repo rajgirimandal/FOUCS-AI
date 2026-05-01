@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus AI - Personal Focus Assistant</title>
+  <link rel="stylesheet" href="styles/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Auth Screens -->
+    <section id="auth-screen" class="auth-container">
+      <div class="auth-box">
+        <div class="logo">
+          <img src="ailogo.png" alt="Focus AI" width="80" />
+          <h1>Focus AI</h1>
+        </div>
+        
+        <!-- Login Form -->
+        <div id="login-form" class="auth-form">
+          <h2>Welcome Back</h2>
+          <p class="auth-subtitle">Sign in to continue your focus journey</p>
+          
+          <form onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label for="login-email">Email</label>
+              <input type="email" id="login-email" required placeholder="you@example.com" />
+            </div>
+            <div class="form-group">
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" required placeholder="••••••••" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
+          </form>
+          
+          <p class="auth-switch">
+            Don't have an account? <a href="#" onclick="showSignup()">Sign up</a>
+          </p>
+        </div>
+        
+        <!-- Signup Form -->
+        <div id="signup-form" class="auth-form hidden">
+          <h2>Create Account</h2>
+          <p class="auth-subtitle">Start tracking your focus journey</p>
+          
+          <form onsubmit="handleSignup(event)">
+            <div class="form-group">
+              <label for="signup-name">Full Name</label>
+              <input type="text" id="signup-name" required placeholder="John Doe" />
+            </div>
+            <div class="form-group">
+              <label for="signup-email">Email</label>
+              <input type="email" id="signup-email" required placeholder="you@example.com" />
+            </div>
+            <div class="form-group">
+              <label for="signup-class">Class/Grade</label>
+              <input type="text" id="signup-class" placeholder="e.g., Grade 10, College Sophomore" />
+            </div>
+            <div class="form-group">
+              <label for="signup-goals">Study Goals</label>
+              <textarea id="signup-goals" placeholder="What do you want to achieve?" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="signup-password">Password</label>
+              <input type="password" id="signup-password" required placeholder="••••••••" minlength="6" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" id="signup-btn">Create Account</button>
+          </form>
+          
+          <p class="auth-switch">
+            Already have an account? <a href="#" onclick="showLogin()">Sign in</a>
+          </p>
+        </div>
+        
+        <p class="auth-error hidden" id="auth-error"></p>
+      </div>
+    </section>
+
+    <!-- Main App -->
+    <div id="main-app" class="hidden">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <img src="ailogo.png" alt="Focus AI" width="50" />
+          <span>Focus AI</span>
+        </div>
+        
+        <nav class="sidebar-nav">
+          <a href="#" class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+            <span class="nav-icon">📊</span>
+            <span>Dashboard</span>
+          </a>
+          <a href="#" class="nav-item" data-page="session" onclick="showPage('session')">
+            <span class="nav-icon">⏱️</span>
+            <span>Study Session</span>
+          </a>
+          <a href="#" class="nav-item" data-page="history" onclick="showPage('history')">
+            <span class="nav-icon">📋</span>
+            <span>History</span>
+          </a>
+          <a href="#" class="nav-item" data-page="reports" onclick="showPage('reports')">
+            <span class="nav-icon">📈</span>
+            <span>Reports</span>
+          </a>
+          <a href="#" class="nav-item" data-page="recommendations" onclick="showPage('recommendations')">
+            <span class="nav-icon">💡</span>
+            <span>AI Insights</span>
+          </a>
+        </nav>
+        
+        <div class="sidebar-footer">
+          <div class="user-info">
+            <div class="user-avatar" id="user-avatar">U</div>
+            <div class="user-details">
+              <span class="user-name" id="display-name">User</span>
+              <span class="user-class" id="display-class"></span>
+            </div>
+          </div>
+          <a href="#" class="logout-btn" onclick="handleLogout()">Logout</a>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Dashboard Page -->
+        <section id="page-dashboard" class="page">
+          <div class="page-header">
+            <h1>Dashboard</h1>
+            <p class="date-display" id="current-date"></p>
+          </div>
+          
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">⏱️</div>
+              <div class="stat-info">
+                <span class="stat-label">Today's Study Time</span>
+                <span class="stat-value" id="today-time">0h 0m</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🎯</div>
+              <div class="stat-info">
+                <span class="stat-label">Focus Score</span>
+                <span class="stat-value" id="focus-score">0%</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📚</div>
+              <div class="stat-info">
+                <span class="stat-label">Sessions Today</span>
+                <span class="stat-value" id="sessions-today">0</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📅</div>
+              <div class="stat-info">
+                <span class="stat-label">This Week</span>
+                <span class="stat-value" id="week-time">0h 0m</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="quick-actions">
+            <button class="btn btn-primary btn-lg" onclick="startQuickSession()">
+              ⏱️ Start Focus Session
+            </button>
+          </div>
+          
+          <div class="dashboard-grid">
+            <div class="dashboard-card">
+              <h3>Today’s Sessions</h3>
+              <div id="today-sessions" class="sessions-list">
+                <p class="empty-state">No sessions today</p>
+              </div>
+            </div>
+            
+            <div class="dashboard-card">
+              <h3>Weekly Trend</h3>
+              <div class="chart-container" id="weekly-chart">
+                <div class="chart-placeholder">
+                  <span>📊</span>
+                  <p>Weekly data visualization</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Session Page -->
+        <section id="page-session" class="page hidden">
+          <div class="page-header">
+            <h1>Study Session</h1>
+            <p>Track your focus in real-time</p>
+          </div>
+          
+          <div class="session-container">
+            <div class="session-card">
+              <div class="session-timer" id="session-timer">
+                <span id="timer-display">00:00:00</span>
+              </div>
+              
+              <div class="session-status">
+                <span class="status-indicator" id="status-indicator"></span>
+                <span id="status-text">Ready to focus</span>
+              </div>
+              
+              <div class="session-focus">
+                <span class="focus-label">Focus Score</span>
+                <span class="focus-value" id="live-focus-score">0%</span>
+              </div>
+              
+              <div class="session-metrics">
+                <div class="metric">
+                  <span class="metric-label">Active Time</span>
+                  <span class="metric-value" id="active-time">0:00</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Inactive Time</span>
+                  <span class="metric-value" id="inactive-time">0:00</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Tab Switches</span>
+                  <span class="metric-value" id="tab-switches">0</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Idle Events</span>
+                  <span class="metric-value" id="idle-events">0</span>
+                </div>
+              </div>
+              
+              <div class="session-controls">
+                <button class="btn btn-success btn-lg" id="start-btn" onclick="startSession()">
+                  Start Session
+                </button>
+                <button class="btn btn-warning btn-lg hidden" id="pause-btn" onclick="pauseSession()">
+                  Pause
+                </button>
+                <button class="btn btn-danger btn-lg hidden" id="resume-btn" onclick="resumeSession()">
+                  Resume
+                </button>
+                <button class="btn btn-error btn-lg hidden" id="end-btn" onclick="endSession()">
+                  End Session
+                </button>
+              </div>
+              
+              <div class="activity-log" id="activity-log">
+                <h4>Activity Log</h4>
+                <div id="activity-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- History Page -->
+        <section id="page-history" class="page hidden">
+          <div class="page-header">
+            <h1>Session History</h1>
+            <p>View all your past study sessions</p>
+          </div>
+          
+          <div class="history-filters">
+            <select id="history-filter" onchange="filterHistory()">
+              <option value="all">All Sessions</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+          
+          <div class="history-list" id="history-list">
+            <p class="empty-state">No sessions yet</p>
+          </div>
+        </section>
+
+        <!-- Reports Page -->
+        <section id="page-reports" class="page hidden">
+          <div class="page-header">
+            <h1>Weekly Reports</h1>
+            <p>Track your progress over time</p>
+          </div>
+          
+          <div class="report-summary">
+            <div class="report-card">
+              <h3>This Week</h3>
+              <div class="report-stats">
+                <div class="report-stat">
+                  <span class="report-label">Total Study Time</span>
+                  <span class="report-value" id="report-total-time">0h</span>
+                </div>
+                <div class="report-stat">
+                  <span class="report-label">Average Focus Score</span>
+                  <span class="report-value" id="report-avg-focus">0%</span>
+                </div>
+                <div class="report-stat">
+                  <span class="report-label">Sessions Completed</span>
+                  <span class="report-value" id="report-sessions">0</span>
+                </div>
+                <div class="report-stat">
+                  <span class="report-label">Trend</span>
+                  <span class="report-value" id="report-trend">--</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="reports-list" id="reports-list">
+            <p class="empty-state">No reports generated yet</p>
+          </div>
+        </section>
+
+        <!-- Recommendations Page -->
+        <section id="page-recommendations" class="page hidden">
+          <div class="page-header">
+            <h1>AI Insights</h1>
+            <p>Personalized recommendations to improve your focus</p>
+          </div>
+          
+          <div class="recommendations-list" id="recommendations-list">
+            <div class="loading-state">Loading insights...</div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>
