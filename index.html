@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FOCUS AI: School Focus & Exam Detection (Pro)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable"></script>
+
+    <link rel="stylesheet" href="style.css">
+
+  <script>
+    const token = sessionStorage.getItem("focusai_token");
+
+    if(!token){
+        window.location.href = "login.html";
+    }
+
+    // Optional: basic token format check
+    if(token && token.length < 20){
+        localStorage.removeItem("focusai_token");
+        window.location.href = "login.html";
+    }
+  </script>
+
+</head>
+
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <div id="alertBanner" class="hidden bg-red-600 text-white text-center font-bold py-1 z-50">
+        ⚠ CHEATING DETECTED
+    </div>
+
+    <audio id="alarmSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+
+    <div id="splash-screen">
+        <img src="ailogo.png" alt="FOCUS AI Logo">
+    </div>
+
+    <div id="modeSelection" class="hidden flex-1 flex flex-col modeSelection-bg">
+        <div class="school-header p-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-widest">
+                    FOCUS<span class="text-yellow-300">AI</span>
+                </h1>
+                <p class="text-xs text-blue-200">School Monitoring & Analytics</p>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="text-xs text-blue-100 text-right hidden sm:block">
+                    <div class="uppercase tracking-wide">MODE SELECTION</div>
+                    <div class="text-[10px]">Choose how you want to monitor today</div>
+                </div>
+
+                <button onclick="toggleMainMenu()"
+                        class="p-2 rounded-full bg-blue-900/60 hover:bg-blue-800 text-blue-100 flex flex-col justify-center">
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 flex items-center justify-center px-4">
+            <div class="max-w-3xl w-full flex flex-col items-center gap-8">
+
+                <div class="hud-panel px-8 py-6 rounded-2xl flex flex-col items-center text-center">
+                    <h2 class="text-xl font-bold">
+                        Welcome to
+                        <span class="text-blue-700">FOCUS<span class="text-yellow-400">AI</span></span>
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        Select a monitoring mode below. You can switch anytime.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                    <button onclick="selectMode('class')"
+                            class="rounded-2xl bg-white shadow p-6 border hover:shadow-md transition flex flex-col items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                            C
+                        </div>
+                        <div class="text-sm font-bold text-slate-800">Class Detection</div>
+                    </button>
+
+                    <button onclick="selectMode('exam')"
+                            class="rounded-2xl bg-white shadow p-6 border hover:shadow-md transition flex flex-col items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                            E
+                        </div>
+                        <div class="text-sm font-bold text-slate-800">Exam Detection</div>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="school-footer p-3 text-[11px] text-center border-t border-slate-300">
+            FOCUSAI · Choose a mode to begin monitoring
+        </div>
+    </div>
+
+    <div id="classApp" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="school-header p-4 flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-widest">
+                    FOCUS<span class="text-yellow-300">AI</span>
+                </h1>
+                <p class="text-xs text-blue-200">Class Activity Attention Tracking</p>
+            </div>
+
+            <div class="flex items-center gap-4 bg-white px-4 py-2 rounded-lg shadow hud-panel">
+                <label class="text-xs font-bold text-slate-700">STRICTNESS:</label>
+                <input id="sensitivity" type="range" min="10" max="90" value="50" class="w-32 h-1">
+                <span id="senseVal" class="text-xs font-mono text-blue-700">50%</span>
+            </div>
+
+            <div class="flex gap-6 items-center">
+                <div class="text-center">
+                    <div class="text-[10px] text-blue-100 uppercase">Students</div>
+                    <div id="countDisplay" class="text-2xl font-bold text-white leading-none">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-[10px] text-blue-100 uppercase">Focus Level</div>
+                    <div id="focusDisplay" class="text-2xl font-bold text-white leading-none">--</div>
+                </div>
+                <div class="hidden sm:flex flex-col text-[10px] text-blue-100" id="activeStudentInfo">
+                    <span id="activeStudentNameLabel">Student: --</span>
+                    <span id="activeStudentRollLabel">Roll No: --</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <div id="recordStatus" class="w-3 h-3 bg-red-600 rounded-full hidden"></div>
+                    <p id="recordText" class="text-sm font-bold text-white hidden">RECORDING...</p>
+                </div>
+
+                <button id="initBtn"
+                        onclick="toggleSystem()"
+                        class="bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-2 rounded font-bold text-sm transition shadow">
+                    START SYSTEM
+                </button>
+
+                <button onclick="toggleMainMenu()"
+                        class="p-2 rounded-full bg-blue-900/60 hover:bg-blue-800 text-blue-100 flex flex-col justify-center">
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full flex justify-center bg-slate-50 border-b border-slate-200 p-2 z-10 shadow-sm relative">
+            <div class="flex gap-6 bg-white px-6 py-2 rounded-lg shadow hud-panel">
+                <div class="text-center">
+                    <div class="text-[10px] text-slate-500">Total</div>
+                    <div id="totalStudents" class="font-bold text-blue-700">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-[10px] text-slate-500">Focused</div>
+                    <div id="focusedCount" class="font-bold text-green-600">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-[10px] text-slate-500">Distracted</div>
+                    <div id="distractedCount" class="font-bold text-red-600">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-[10px] text-slate-500">Alerts</div>
+                    <div id="alertCount" class="font-bold text-yellow-600">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="relative flex-1 bg-white w-full flex items-center justify-center overflow-hidden">
+            <video id="video" class="hidden" playsinline></video>
+            <canvas id="canvas"></canvas>
+
+            <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center z-30 hidden">
+                <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <h2 class="text-xl font-bold">LOADING AI MODEL</h2>
+                <p class="text-sm mt-2">MoveNet Multi-Person Loading…</p>
+            </div>
+        </div>
+
+        <div class="school-footer p-2 text-[10px] flex justify-center gap-6 border-t border-slate-300">
+            <span class="flex items-center gap-1">
+                <div class="w-2 h-2 bg-green-500 rounded-full"></div> Focused
+            </span>
+            <span class="flex items-center gap-1">
+                <div class="w-2 h-2 bg-red-500 rounded-full"></div> Distracted
+            </span>
+            <span class="hidden sm:flex items-center gap-1 text-slate-500">
+                Session is recorded automatically while system is ON
+            </span>
+        </div>
+    </div>
+
+    <div id="examApp" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="school-header p-4 flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-widest">
+                    FOCUS<span class="text-yellow-300">AI</span>
+                </h1>
+                <p class="text-xs text-blue-200">Exam Monitoring Mode</p>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <div class="flex flex-col text-[10px] text-blue-100" id="examActiveStudentInfo">
+                    <span id="examActiveStudentNameLabel">Student: --</span>
+                    <span id="examActiveStudentRollLabel">Roll No: --</span>
+                </div>
+
+                <div class="flex items-center gap-4 bg-white/95 px-4 py-2 rounded-lg shadow hud-panel">
+                    <div class="text-[10px] font-bold text-slate-700 uppercase">Mode</div>
+                    <div class="text-xs font-semibold text-amber-600">DUAL EXAM AI</div>
+                </div>
+
+                <button onclick="toggleMainMenu()"
+                        class="p-2 rounded-full bg-blue-900/60 hover:bg-blue-800 text-blue-100 flex flex-col justify-center">
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col items-center justify-center bg-white p-4 gap-4 w-full">
+            
+            <div id="examSetupPanel" class="hud-panel w-full max-w-3xl rounded-2xl p-6 flex flex-col gap-4">
+                <h2 class="text-lg font-bold text-slate-800">Setup Dual Monitoring Cameras</h2>
+                <p class="text-xs text-slate-500 mb-2">Select the video sources for the floor (front) and ceiling (top-down) views.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[11px] font-semibold text-slate-600">Front / Floor View Camera</label>
+                        <select id="frontCamSelect" class="border border-slate-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"></select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[11px] font-semibold text-slate-600">Ceiling / Desk View Camera</label>
+                        <select id="ceilingCamSelect" class="border border-slate-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"></select>
+                    </div>
+                </div>
+                
+                <button onclick="startDualExamCameras()" class="mt-4 px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500">
+                    START DUAL MONITORING
+                </button>
+            </div>
+
+            <div id="dualVideoContainer" class="hidden w-full max-w-5xl rounded-2xl overflow-hidden relative border border-slate-300 shadow-sm">
+                <div class="border-b border-slate-200 px-4 py-2 flex justify-between items-center text-[11px] text-slate-500 bg-white">
+                    <span>Exam Camera · Dual Live</span>
+                    <span class="text-amber-600 font-semibold">Detecting head turns, phone, paper & under-desk objects</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 bg-black p-2">
+                    <div class="relative w-full">
+                        <div class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] px-2 py-1 rounded z-10 font-bold">FRONT VIEW</div>
+                        <video id="examVideoFront" class="hidden" playsinline></video>
+                        <canvas id="examCanvasFront" class="w-full h-[320px] object-cover bg-slate-900"></canvas>
+                    </div>
+                    
+                    <div class="relative w-full">
+                        <div class="absolute top-2 left-2 bg-purple-600 text-white text-[10px] px-2 py-1 rounded z-10 font-bold">CEILING VIEW</div>
+                        <video id="examVideoCeiling" class="hidden" playsinline></video>
+                        <canvas id="examCanvasCeiling" class="w-full h-[320px] object-cover bg-slate-900"></canvas>
+                    </div>
+                    
+                    <div id="examLoader" class="absolute inset-0 flex flex-col items-center justify-center z-30 hidden bg-white/90">
+                        <div class="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <h2 class="text-xl font-bold text-slate-800">INITIALIZING DUAL AI</h2>
+                        <p class="text-sm mt-2 text-slate-600">Loading Pose & Object Detection for dual streams...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] mt-2">
+                <div class="hud-panel rounded-xl px-3 py-2 flex flex-col">
+                    <span class="uppercase text-slate-500 font-semibold mb-1">Total Examinees</span>
+                    <span id="examTotalDisplay" class="text-lg font-bold text-slate-800">0</span>
+                </div>
+                <div class="hud-panel rounded-xl px-3 py-2 flex flex-col">
+                    <span class="uppercase text-slate-500 font-semibold mb-1">Suspicious Incidents</span>
+                    <span id="examSuspectDisplay" class="text-lg font-bold text-red-600">0</span>
+                </div>
+                <div class="hud-panel rounded-xl px-3 py-2 flex flex-col">
+                    <span class="uppercase text-slate-500 font-semibold mb-1">Status</span>
+                    <span id="examStatusText" class="text-xs font-semibold text-slate-700">
+                        Exam setup ready. Select cameras above.
+                    </span>
+                </div>
+            </div>
+
+            <button onclick="stopExamSystem()"
+                    class="mt-2 px-6 py-2 rounded-md bg-red-600 text-white text-xs font-semibold hover:bg-red-500 transition shadow">
+                STOP DUAL EXAM & GENERATE REPORT
+            </button>
+        </div>
+
+        <div class="school-footer p-2 text-[10px] flex justify-center gap-6 border-t border-slate-300">
+            <span class="text-slate-600">
+                FOCUSAI Dual-Angle Exam Mode · Multi-signal suspicion detection
+            </span>
+        </div>
+    </div>
+
+    <div id="studentsView" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="school-header p-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-widest">
+                    FOCUS<span class="text-yellow-300">AI</span>
+                </h1>
+                <p class="text-xs text-blue-200">Student Management</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="text-xs text-blue-100 text-right hidden sm:block">
+                    <div class="uppercase tracking-wide">Students</div>
+                    <div class="text-[10px]">Add student details for display</div>
+                </div>
+                <button onclick="toggleMainMenu()"
+                        class="p-2 rounded-full bg-blue-900/60 hover:bg-blue-800 text-blue-100 flex flex-col justify-center">
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-slate-100 px-4 py-4 flex justify-center">
+            <div class="max-w-4xl w-full flex flex-col gap-4">
+                <div class="hud-panel rounded-2xl p-4 flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-sm font-bold text-slate-800">Add Student</h2>
+                        <div class="text-[11px] text-slate-500">
+                            Active Student:
+                            <span id="studentsActiveDisplay" class="font-semibold text-blue-700">None selected</span>
+                        </div>
+                    </div>
+
+                    <form id="studentForm"
+                          class="mt-2 grid grid-cols-1 md:grid-cols-4 gap-3"
+                          onsubmit="addStudent(event)">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-semibold text-slate-600">Student Name</label>
+                            <input id="studentName" type="text" required
+                                   class="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-semibold text-slate-600">Roll No</label>
+                            <input id="studentRoll" type="text" required
+                                   class="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-semibold text-slate-600">Photo</label>
+                            <input id="studentImage" type="file" accept="image/*"
+                                   class="text-[11px]">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit"
+                                    class="w-full md:w-auto px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500">
+                                Add Student
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="hud-panel rounded-2xl p-4">
+                    <h2 class="text-sm font-bold text-slate-800 mb-2">Student List</h2>
+                    <div id="studentsList" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"></div>
+                    <div id="noStudentsMessage" class="text-[11px] text-slate-500 mt-2">
+                        No students added yet. Add a student using the form above.
+                    </div>
+                </div>
+
+                <div id="attendanceSection" class="hud-panel rounded-2xl p-4 mt-4">
+                    <h2 class="text-sm font-bold text-slate-800 mb-2">📊 Attendance System</h2>
+                    <div id="attendanceSummary" class="mb-2"></div>
+                    <div id="attendanceTable" class="text-sm">
+                        <p class="text-slate-500 text-[11px]">System inactive. Start detection to view attendance.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="school-footer p-2 text-[10px] flex justify-center gap-6 border-t border-slate-300">
+            <span class="text-slate-600">Student details are shown in Class & Exam headers</span>
+        </div>
+    </div>
+
+    <div id="settingsView" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="school-header p-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-widest">
+                    FOCUS<span class="text-yellow-300">AI</span>
+                </h1>
+                <p class="text-xs text-blue-200">Settings</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="text-xs text-blue-100 text-right hidden sm:block">
+                    <div class="uppercase tracking-wide">Display & Theme</div>
+                    <div class="text-[10px]">Customize how FOCUSAI looks</div>
+                </div>
+                <button onclick="toggleMainMenu()"
+                        class="p-2 rounded-full bg-blue-900/60 hover:bg-blue-800 text-blue-100 flex flex-col justify-center">
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                    <span class="block w-4 h-[2px] bg-blue-100"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-slate-100 px-4 py-4 flex justify-center">
+            <div class="max-w-3xl w-full flex flex-col gap-4">
+                <div class="hud-panel rounded-2xl p-4 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-800">Theme</h2>
+                        <p class="text-[11px] text-slate-500">
+                            Switch between light and dark mode.
+                        </p>
+                    </div>
+                    <select id="themeSelect"
+                            class="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="light">Light Mode</option>
+                        <option value="dark">Dark Mode</option>
+                    </select>
+                </div>
+
+                <div class="hud-panel rounded-2xl p-4 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-800">Font Size</h2>
+                        <p class="text-[11px] text-slate-500">
+                            Adjust the overall text size of the app.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input id="fontSizeRange" type="range" min="90" max="120" value="100">
+                        <span id="fontSizeValue" class="text-xs text-slate-700">100%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="school-footer p-2 text-[10px] flex justify-center gap-6 border-t border-slate-300">
+            <span class="text-slate-600">Settings only change this browser's view</span>
+        </div>
+    </div>
+
+    <div id="mainMenu"
+         class="hidden fixed right-4 top-14 z-50 bg-white rounded-xl shadow-lg border border-slate-200 text-sm">
+
+        <button onclick="goHome()"
+                class="block w-full text-left px-4 py-2 hover:bg-slate-100 border-b border-slate-100">
+            Home
+        </button>
+
+        <button onclick="openStudents()"
+                class="block w-full text-left px-4 py-2 hover:bg-slate-100 border-b border-slate-100">
+            Students
+        </button>
+        
+        <button onclick="openLibrary()"
+                class="block w-full text-left px-4 py-2 hover:bg-slate-100 border-b border-slate-100">
+            NCERT Library
+        </button>
+
+        <button onclick="openSettings()"
+                class="block w-full text-left px-4 py-2 hover:bg-slate-100">
+            Settings
+        </button>
+
+    </div>
+
+    <div id="libraryView" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="school-header p-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-widest">
+                    FOCUS<span class="text-yellow-300">AI</span>
+                </h1>
+                <p class="text-xs text-blue-200">NCERT Digital Library</p>
+            </div>
+
+            <button onclick="toggleMainMenu()"
+                    class="p-2 rounded-full bg-blue-900/60 hover:bg-blue-800 text-blue-100 flex flex-col justify-center">
+                <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                <span class="block w-4 h-[2px] bg-blue-100 mb-[3px]"></span>
+                <span class="block w-4 h-[2px] bg-blue-100"></span>
+            </button>
+        </div>
+
+        <div class="flex-1 bg-slate-100 p-6 overflow-y-auto">
+            <h2 class="text-xl font-bold mb-6 text-slate-800">
+                NCERT Books (Class 8 – 12)
+            </h2>
+
+            <h3 class="text-lg font-semibold mb-2">Class 8</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class8_math.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📘 Mathematics</a>
+                <a href="pdfs/class8_science.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🔬 Science</a>
+                <a href="pdfs/class8_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class8_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+                <a href="pdfs/class8_sst.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🌍 Social Science</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 9</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class9_math.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📘 Mathematics</a>
+                <a href="pdfs/class9_science.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🔬 Science</a>
+                <a href="pdfs/class9_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class9_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+                <a href="pdfs/class9_sst.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🌍 Social Science</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 10</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class10_math.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📘 Mathematics</a>
+                <a href="pdfs/class10_science.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🔬 Science</a>
+                <a href="pdfs/class10_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class10_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+                <a href="pdfs/class10_sst.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🌍 Social Science</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 11 Science</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class11_physics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">⚡ Physics</a>
+                <a href="pdfs/class11_chemistry.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🧪 Chemistry</a>
+                <a href="pdfs/class11_math.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📘 Mathematics</a>
+                <a href="pdfs/class11_biology.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🧬 Biology</a>
+                <a href="pdfs/class11_cs.pdf" target="_blank" class="hud-panel p-3 rounded-xl">💻 Computer Science</a>
+                <a href="pdfs/class11_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class11_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 11 Humanities</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class11_history.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🏺 History</a>
+                <a href="pdfs/class11_geography.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🌍 Geography</a>
+                <a href="pdfs/class11_politics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🏛 Political Science</a>
+                <a href="pdfs/class11_economics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">💰 Economics</a>
+                <a href="pdfs/class11_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class11_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 11 Commerce</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class11_accountancy.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📊 Accountancy</a>
+                <a href="pdfs/class11_business.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🏢 Business Studies</a>
+                <a href="pdfs/class11_economics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">💰 Economics</a>
+                <a href="pdfs/class11_math.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📘 Mathematics</a>
+                <a href="pdfs/class11_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 12 Science</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class12_physics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">⚡ Physics</a>
+                <a href="pdfs/class12_chemistry.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🧪 Chemistry</a>
+                <a href="pdfs/class12_math.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📘 Mathematics</a>
+                <a href="pdfs/class12_biology.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🧬 Biology</a>
+                <a href="pdfs/class12_cs.pdf" target="_blank" class="hud-panel p-3 rounded-xl">💻 Computer Science</a>
+                <a href="pdfs/class12_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class12_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-2">Class 12 Humanities</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <a href="pdfs/class12_history.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🏺 History</a>
+                <a href="pdfs/class12_geography.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🌍 Geography</a>
+                <a href="pdfs/class12_politics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">🏛 Political Science</a>
+                <a href="pdfs/class12_economics.pdf" target="_blank" class="hud-panel p-3 rounded-xl">💰 Economics</a>
+                <a href="pdfs/class12_english.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📖 English</a>
+                <a href="pdfs/class12_hindi.pdf" target="_blank" class="hud-panel p-3 rounded-xl">📕 Hindi</a>
+            </div>
+        </div>
+
+        <div class="school-footer p-2 text-[10px] flex justify-center border-t border-slate-300">
+            <span class="text-slate-600">FOCUSAI · NCERT Learning Library</span>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
