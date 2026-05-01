@@ -38,6 +38,7 @@ async function startMode(selectedMode) {
   modeSelection.classList.add('hidden');
   dashboard.classList.remove('hidden');
   backBtn.classList.remove('hidden');
+  homeBtn.classList.remove('hidden');
 
   loader.classList.remove('hidden');
   await setupCamera();
