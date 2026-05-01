@@ -1,8 +1,7 @@
 {
-  "name": "focus-ai-personal-monitor",
-  "version": "1.0.0",
+  "name": "focus-ai-frontend-demo",
+  "version": "2.0.0",
   "private": true,
-  "description": "Single-user in-browser AI monitoring tool",
   "scripts": {
     "start": "python -m http.server 8080"
   }

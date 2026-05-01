@@ -3,7 +3,7 @@ const modeSelection = document.getElementById('modeSelection');
 const dashboard = document.getElementById('dashboard');
 const classModeBtn = document.getElementById('classModeBtn');
 const examModeBtn = document.getElementById('examModeBtn');
-const homeBtn = document.getElementById('homeBtn');
+const backBtn = document.getElementById('backBtn');
 const modeLabel = document.getElementById('modeLabel');
 const focusPercent = document.getElementById('focusPercent');
 const statusLabel = document.getElementById('statusLabel');
@@ -24,17 +24,20 @@ let analyser = null;
 let dataArray = null;
 let rafId = null;
 
-setTimeout(() => splash.classList.add('hidden'), 1800);
+setTimeout(() => {
+  splash.classList.add('fade');
+}, 1400);
 
 classModeBtn.addEventListener('click', () => startMode('class'));
 examModeBtn.addEventListener('click', () => startMode('exam'));
-homeBtn.addEventListener('click', stopAndReturnHome);
+backBtn.addEventListener('click', stopAndReturnHome);
 
 async function startMode(selectedMode) {
   mode = selectedMode;
   modeLabel.textContent = mode === 'class' ? 'Class Mode' : 'Exam Mode';
   modeSelection.classList.add('hidden');
   dashboard.classList.remove('hidden');
+  backBtn.classList.remove('hidden');
   homeBtn.classList.remove('hidden');
 
   loader.classList.remove('hidden');
@@ -50,17 +53,16 @@ async function setupCamera() {
   stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
   video.srcObject = stream;
   await video.play();
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 720;
 }
 
 async function setupAudio() {
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioContext.createAnalyser();
-  const source = audioContext.createMediaStreamSource(micStream);
-  source.connect(analyser);
   analyser.fftSize = 256;
+  audioContext.createMediaStreamSource(micStream).connect(analyser);
   dataArray = new Uint8Array(analyser.frequencyBinCount);
 }
 
@@ -77,9 +79,7 @@ async function loadModels() {
 
 function getNoiseLevel() {
   analyser.getByteFrequencyData(dataArray);
-  let sum = 0;
-  for (const v of dataArray) sum += v;
-  return sum / dataArray.length;
+  return dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
 }
 
 async function runMonitorLoop() {
@@ -90,47 +90,71 @@ async function runMonitorLoop() {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   let score = 100;
-  let alert = '';
   let status = 'Focused';
+  let alert = '';
 
-  const personCount = objects.filter((o) => o.class === 'person').length;
-  const phoneDetected = objects.some((o) => o.class === 'cell phone');
+  const personCount = objects.filter((obj) => obj.class === 'person').length;
+  const phoneDetected = objects.some((obj) => obj.class === 'cell phone');
 
-  if (poses.length) {
-    const nose = poses[0].keypoints.find((k) => k.name === 'nose');
-    const leftEye = poses[0].keypoints.find((k) => k.name === 'left_eye');
-    const rightEye = poses[0].keypoints.find((k) => k.name === 'right_eye');
+  if (!poses.length) {
+    score -= 35;
+    alert = 'Face missing: possible distraction';
+  } else {
+    const kp = poses[0].keypoints;
+    const nose = kp.find((k) => k.name === 'nose');
+    const leftEye = kp.find((k) => k.name === 'left_eye');
+    const rightEye = kp.find((k) => k.name === 'right_eye');
+    const leftShoulder = kp.find((k) => k.name === 'left_shoulder');
+    const rightShoulder = kp.find((k) => k.name === 'right_shoulder');
+
     if (nose && leftEye && rightEye && nose.score > 0.3 && leftEye.score > 0.3 && rightEye.score > 0.3) {
       const eyeCenterX = (leftEye.x + rightEye.x) / 2;
-      const lookOffset = Math.abs(nose.x - eyeCenterX);
-      if (lookOffset > 24) score -= 30;
+      const lookOffset = nose.x - eyeCenterX;
+      const downwardTilt = nose.y - ((leftEye.y + rightEye.y) / 2);
+      if (Math.abs(lookOffset) > 24) {
+        score -= 30;
+        alert = lookOffset > 0 ? 'Head direction: looking right' : 'Head direction: looking left';
+      }
+      if (downwardTilt > 20) {
+        score -= 18;
+        alert = 'Head direction: looking down';
+      }
     } else {
-      score -= 15;
+      score -= 20;
     }
-  } else {
-    score -= 35;
+
+    if (leftShoulder && rightShoulder && leftShoulder.score > 0.25 && rightShoulder.score > 0.25) {
+      const shoulderSlope = Math.abs(leftShoulder.y - rightShoulder.y);
+      if (shoulderSlope > 35) score -= 12;
+    }
   }
 
   if (mode === 'class') {
-    if (noise > 28) score -= 15;
-    if (phoneDetected) score -= 25;
-    if (score < 65) {
-      status = 'Distracted';
-      alert = 'Distraction detected: check posture, gaze, or background noise.';
+    if (noise > 28) {
+      score -= 15;
+      alert = alert || 'Loud noise/talking detected';
     }
-  } else {
     if (phoneDetected) {
-      score -= 60;
-      alert = 'Violation: phone detected.';
+      score -= 25;
+      alert = 'Phone detected in class mode';
+    }
+    if (score < 65) status = 'Distracted';
+  }
+
+  if (mode === 'exam') {
+    if (phoneDetected) {
+      score -= 65;
+      alert = 'EXAM ALERT: Phone detected';
     }
     if (personCount > 1) {
-      score -= 60;
-      alert = 'Violation: multiple faces/persons detected.';
+      score -= 65;
+      alert = 'EXAM ALERT: Multiple persons detected';
     }
     if (score < 60) {
       status = 'Cheating';
-      playAlarm();
-      if (!alert) alert = 'Violation: repeated looking away detected.';
+      alarmSound.currentTime = 0;
+      alarmSound.play().catch(() => {});
+      if (!alert) alert = 'EXAM ALERT: Looking away repeatedly';
     }
   }
 
@@ -138,19 +162,11 @@ async function runMonitorLoop() {
   focusPercent.textContent = `${score}%`;
   statusLabel.textContent = status;
 
-  if (alert) {
-    alertBox.textContent = alert;
-    alertBox.classList.remove('hidden');
-  } else {
-    alertBox.classList.add('hidden');
-  }
+  alertBox.textContent = alert || 'No active alert';
+  alertBox.classList.toggle('hidden', !alert);
+  if (mode === 'exam' && alert) alertBox.style.borderColor = '#ef4444';
 
   rafId = requestAnimationFrame(runMonitorLoop);
-}
-
-function playAlarm() {
-  alarmSound.currentTime = 0;
-  alarmSound.play().catch(() => {});
 }
 
 function stopAndReturnHome() {
@@ -163,12 +179,11 @@ function stopAndReturnHome() {
   audioContext = null;
   analyser = null;
   dataArray = null;
-  mode = null;
 
-  alertBox.classList.add('hidden');
-  statusLabel.textContent = 'Idle';
   focusPercent.textContent = '0%';
-  homeBtn.classList.add('hidden');
+  statusLabel.textContent = 'Idle';
+  alertBox.classList.add('hidden');
+  backBtn.classList.add('hidden');
   dashboard.classList.add('hidden');
   modeSelection.classList.remove('hidden');
 }

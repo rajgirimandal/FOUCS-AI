@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FOCUS AI | Personal Focus Monitor</title>
+  <title>FOCUS AI | Personal AI Focus Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
@@ -12,60 +12,53 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100">
+<body>
   <audio id="alarmSound" preload="auto" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
 
-  <section id="splash" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950">
-    <div class="text-center animate-pulse">
-      <img src="ailogo.png" alt="Focus AI Logo" class="mx-auto w-32 md:w-44" />
-      <h1 class="mt-5 text-3xl font-bold tracking-[0.4em]">FOCUS AI</h1>
-      <p class="mt-2 text-sm text-slate-300">Personal AI Monitoring Assistant</p>
+  <section id="splash" class="splash-screen">
+    <div class="splash-content">
+      <img src="ailogo.png" alt="Focus AI Logo" class="splash-logo" />
+      <h1 class="splash-title">FOCUS AI</h1>
+      <p class="splash-subtitle">Personal AI Focus Assistant</p>
     </div>
   </section>
 
-  <main class="max-w-6xl mx-auto px-4 py-6 md:py-8">
-    <header class="mb-6 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl md:text-3xl font-bold">FOCUS AI</h1>
-        <p class="text-sm text-slate-400">In-browser, private, single-user monitoring.</p>
-      </div>
-      <button id="homeBtn" class="hud-btn hidden">Switch Mode</button>
+  <main class="app-shell">
+    <header class="topbar">
+      <h1>FOCUS AI</h1>
+      <button id="backBtn" class="hud-btn hidden">Back to Modes</button>
     </header>
 
-    <section id="modeSelection" class="hud-card p-8 text-center">
-      <h2 class="text-xl font-semibold">Select Monitoring Mode</h2>
-      <p class="text-slate-400 mt-2">No login. No cloud sync. No personal data storage.</p>
-      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-        <button id="classModeBtn" class="mode-btn">Class Mode</button>
-        <button id="examModeBtn" class="mode-btn danger">Exam Mode</button>
+    <section id="modeSelection" class="glass-card">
+      <h2>Choose a Mode</h2>
+      <p>Instant launch • Frontend-only • No login • No data storage</p>
+      <div class="mode-grid">
+        <button id="classModeBtn" class="mode-btn class">Class Mode</button>
+        <button id="examModeBtn" class="mode-btn exam">Exam Mode</button>
       </div>
     </section>
 
-    <section id="dashboard" class="hidden space-y-4">
-      <div class="hud-card p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <div class="label">MODE</div>
-          <div id="modeLabel" class="value">--</div>
-        </div>
-        <div>
-          <div class="label">FOCUS %</div>
-          <div id="focusPercent" class="value">0%</div>
-        </div>
-        <div>
-          <div class="label">STATUS</div>
-          <div id="statusLabel" class="value">Idle</div>
-        </div>
+    <section id="dashboard" class="hidden">
+      <div class="hud-grid">
+        <div class="hud-card"><span>MODE</span><strong id="modeLabel">--</strong></div>
+        <div class="hud-card"><span>FOCUS %</span><strong id="focusPercent">0%</strong></div>
+        <div class="hud-card"><span>STATUS</span><strong id="statusLabel">Idle</strong></div>
       </div>
-
-      <div id="alertBox" class="hidden hud-alert"></div>
-
-      <div class="hud-card p-0 overflow-hidden relative">
+      <div id="alertBox" class="hud-alert hidden">No alerts</div>
+      <div class="preview glass-card">
         <video id="video" class="hidden" playsinline></video>
-        <canvas id="canvas" class="w-full h-[65vh]"></canvas>
-        <div id="loader" class="absolute inset-0 grid place-items-center bg-slate-900/85 text-slate-100 hidden">Loading AI models...</div>
+        <canvas id="canvas"></canvas>
+        <div id="loader" class="loader hidden">Loading AI models...</div>
       </div>
+    </section>
 
-      <p class="text-xs text-slate-400 text-center">All analysis runs in memory on this device only.</p>
+    <section class="glass-card about">
+      <h3>About Focus AI</h3>
+      <p><strong>Founder:</strong> Rajgiri Mandal</p>
+      <p><strong>CEO:</strong> Rajgiri Mandal</p>
+      <p><strong>What is Focus AI:</strong> A personal, browser-based AI assistant that monitors focus during Google Meet, online classes, and self-study.</p>
+      <p><strong>How it works:</strong> Uses webcam and microphone streams with MoveNet and COCO-SSD locally in your browser to estimate focus and detect distractions/violations in real time.</p>
+      <p><strong>Vision:</strong> Build a privacy-first Personal AI Focus Assistant that helps learners stay present without surveillance infrastructure.</p>
     </section>
   </main>
 
